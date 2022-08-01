@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Map Address Picker with Google Maps JavaScript API v3</title>
+    <style type="text/css">
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            margin: 10px;
+        }
+
+        #map_canvas {
+            height: 200px;
+            width: 700px;
+        }
+
+        
+    </style>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCeZ9HTq2myGSbgrH2PCb543cAzDDY-ZTU"></script>
+    <script>
+        var geocoder;
+        var map;
+        var updatedMapAddress;
+        var marker;
+        var infowindow = new google.maps.InfoWindow({
+            size: new google.maps.Size(150, 50)
+        });
+
+        function initialize() {
+            geocoder = new google.maps.Geocoder();
+            var latlng = new google.maps.LatLng(-34.397, 150.644);
+            var mapOptions = {
+                zoom: 8,
+                center: latlng,
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                // disableDefaultUI: true,
+                streetViewControl: false,
+                mapTypeControl: false,
+                scaleControl: true,
+                zoomControl: true
+            }
+            map = new google.maps.Map(document.getElementById('map_canvas'), mapOptions);
+            google.maps.event.addListener(map, 'click', function () {
+                infowindow.close();
+            });
+
+            codeAddress();
+        }
+
+        function clone(obj) {
+            if (obj == null || typeof (obj) != 'object') return obj;
+            var temp = new obj.constructor();
+            for (var key in obj) temp[key] = clone(obj[key]);
+            return temp;
+        }
+
+        function geocodePosition(pos) {
+            geocoder.geocode({
+                latLng: pos
+            }, function (responses) {
+                if (responses && responses.length > 0) {
+                    updatedMapAddress = getAddressObject(responses[0].address_components);
+                    document.getElementById('map-address').value = updatedMapAddress['string'];
+                    marker.formatted_address = updatedMapAddress['string'];
+                } else {
+                    marker.formatted_address = 'Cannot determine address at this location.';
+                }
+                infowindow.setContent(marker.formatted_address);
+                infowindow.open(map, marker);
+            });
+        }
+
+        function codeAddress() {
+            var address = document.getElementById('map-address').value;
+            
+            geocoder.geocode({
+                'address': address
+            }, function (results, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                    map.setCenter(results[0].geometry.location);
+                    if (marker) {
+                        marker.setMap(null);
+                        if (infowindow) infowindow.close();
+                    }
+                    marker = new google.maps.Marker({
+                        map: map,
+                        draggable: true,
+                        position: results[0].geometry.location
+                    });
+                    if (results[0].formatted_address) {
+                        updatedMapAddress = getAddressObject(results[0].address_components);
+                    }
+                    map.addListener("click", function (event) {
+                        marker.setPosition(event.latLng);
+                        geocodePosition(marker.getPosition());
+                    });
+                    google.maps.event.addListener(marker, 'dragend', function () {
+                        // updateMarkerStatus('Drag ended');
+                        geocodePosition(marker.getPosition());
+                    });
+                    google.maps.event.addListener(marker, 'click', function () {
+                        if (marker.formatted_address) {
+                            updatedMapAddress = getAddressObject(marker.address_components);
+                            document.getElementById('map-address').value = updatedMapAddress['string'];
+                            infowindow.setContent($address['string']);
+                        } else {
+                            infowindow.setContent(address);
+                        }
+                        infowindow.open(map, marker);
+                    });
+                    google.maps.event.trigger(marker, 'click');
+                } else {
+                    alert('Geocode was not successful for the following reason: ' + status);
+                }
+            });
+        }
+
+        function getAddressObject(address_components) {
+            var ShouldBeComponent = {
+                home: ["street_number"],
+                postal_code: ["postal_code"],
+                street: ["street_address", "route"],
+                region: [
+                "administrative_area_level_1",
+                "administrative_area_level_2",
+                "administrative_area_level_3",
+                "administrative_area_level_4",
+                "administrative_area_level_5"
+                ],
+                city: [
+                "locality",
+                "sublocality",
+                "sublocality_level_1",
+                "sublocality_level_2",
+                "sublocality_level_3",
+                "sublocality_level_4"
+                ],
+                country: ["country"]
+            };
+
+            var address = {
+                home: "",
+                postal_code: "",
+                street: "",
+                region: "",
+                city: "",
+                country: ""
+            };
+            address_components.forEach(component => {
+                for (var shouldBe in ShouldBeComponent) {
+                    if (ShouldBeComponent[shouldBe].indexOf(component.types[0]) !== -1) {
+                        if (shouldBe === "country" || shouldBe === "region") {
+                            address[shouldBe] = component.short_name;
+                        } else {
+                            address[shouldBe] = component.long_name;
+                        }
+                    }
+                }
+            });
+
+            address["string"] = getAddressString(address);
+
+            return {
+                "address_line_1": (address['home']+" "+address['street']).trim(),
+                "address_line_2": "",
+                "city": address['city'],
+                "state": address['region'],
+                "zipcode": address['postal_code'],
+                "country": address['country'],
+                "string": address["string"]
+            };
+        }
+        
+        function getAddressString(address){
+            var string = "";
+            if(address["home"] != ""){
+                string += address["home"]+" ";
+            }
+            if(address["street"] != ""){
+                string += address["street"]+", ";
+            }
+            if(address["city"] != ""){
+                string += address["city"]+", ";
+            }
+            if(address["region"] != ""){
+                string += address["region"]+" ";
+            }
+            if(address["postal_code"] != ""){
+                string += address["postal_code"]+", ";
+            }
+            if(address["country"] != ""){
+                string += address["country"];
+            }
+            
+            var result = string.split(",").map(function (value) {
+                return value.trim();
+            });
+            
+            return result.join(', ');
+        }
+    </script>
+</head>
+
+<body onload="initialize()">
+    <div>
+        <input id="map-address" type="textbox" value="West Linn, OR 97068 US">
+        <input type="button" value="Search" onclick="codeAddress()">
+    </div>
+    <div id="map_canvas" style="height:90%;top:30px"></div>
+</body>
+
+</html>
